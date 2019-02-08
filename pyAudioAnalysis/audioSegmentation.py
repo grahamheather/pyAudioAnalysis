@@ -865,9 +865,16 @@ def speakerDiarization(filename, n_speakers, mt_size=2.0, mt_step=0.2,
     sil_all = []
     centersAll = []
     
-    for iSpeakers in s_range:        
+    for iSpeakers in s_range:
+        # if there are fewer samples than clusters to sort into, skip this step
+        if iSpeakers > mt_feats_norm.shape[1]:
+            sil_all.append(0)
+            clsAll.append(numpy.array([]))
+            centersAll.append(numpy.array([]))
+            continue  
         k_means = sklearn.cluster.KMeans(n_clusters=iSpeakers)
         k_means.fit(mt_feats_norm.T)
+
         cls = k_means.labels_        
         means = k_means.cluster_centers_
 
@@ -928,15 +935,19 @@ def speakerDiarization(filename, n_speakers, mt_size=2.0, mt_step=0.2,
         cls[i] = clsAll[imax][j]
         
     # Post-process method 1: hmm smoothing
-    for i in range(1):
-        # hmm training
-        start_prob, transmat, means, cov = \
-            trainHMM_computeStatistics(mt_feats_norm_or, cls)
-        hmm = hmmlearn.hmm.GaussianHMM(start_prob.shape[0], "diag")
-        hmm.startprob_ = start_prob
-        hmm.transmat_ = transmat            
-        hmm.means_ = means; hmm.covars_ = cov
-        cls = hmm.predict(mt_feats_norm_or.T)                    
+    try:
+        for i in range(1):
+            # hmm training
+            start_prob, transmat, means, cov = \
+                trainHMM_computeStatistics(mt_feats_norm_or, cls)
+            hmm = hmmlearn.hmm.GaussianHMM(start_prob.shape[0], "diag")
+            hmm.startprob_ = start_prob
+            hmm.transmat_ = transmat            
+            hmm.means_ = means; hmm.covars_ = cov
+            cls = hmm.predict(mt_feats_norm_or.T)
+    except ValueError as e:
+        # skip HMM smoothing if the matrix isn't sufficient
+        pass                    
     
     # Post-process method 2: median filtering:
     cls = scipy.signal.medfilt(cls, 13)
@@ -978,7 +989,6 @@ def speakerDiarization(filename, n_speakers, mt_size=2.0, mt_step=0.2,
                                                         100 * purity_speaker_m))
     if plot_res:
         plt.xlabel("time (seconds)")
-        #print s_range, sil_all    
         if n_speakers<=0:
             plt.subplot(212)
             plt.plot(s_range, sil_all)
