@@ -995,7 +995,17 @@ def speakerDiarization(filename, n_speakers, mt_size=2.0, mt_step=0.2,
             plt.xlabel("number of clusters");
             plt.ylabel("average clustering's sillouette");
         plt.show()
-    return cls
+
+    # CAT PROJECT EDIT: return mean and covariance of each speaker for re-identification
+    means = centersAll[imax]
+    labels = clsAll[imax]
+    samples = mt_feats_norm
+
+    covariances = numpy.zeros((nSpeakersFinal, samples.shape[0], samples.shape[0]))
+    for speaker in range(nSpeakersFinal):
+        covariances[speaker, :, :] = numpy.cov(samples[:, labels == speaker])
+
+    return (cls, means, covariances)
     
 def speakerDiarizationEvaluateScript(folder_name, ldas):
     '''
